@@ -25,8 +25,6 @@ save_to_csv = True
 max_length = 1000
 
 
-
-
 def check_connection():
     with serial.Serial(**pmd_settings) as ser:
 
@@ -61,20 +59,19 @@ def get_new_sensor_values(save_to_csv):
     df = pd.DataFrame()
     timestamp = pd.Timestamp(datetime.today())
 
-    names = ['PCIE1', 'PCIE2', 'EPS1', 'EPS2']
+    sensors = ['PCIE1', 'PCIE2', 'EPS1', 'EPS2']
 
-    for i, name in enumerate(names):
+    for i, name in enumerate(sensors):
 
+        # convert bytes to float values
         voltage_value = int.from_bytes(read_bytes[i*4:i*4+2], byteorder='little')*0.01
         current_value = int.from_bytes(read_bytes[i*4+2:i*4+4], byteorder='little')*0.1
         power_value = voltage_value * current_value
 
+        # save rows to dataframe
         voltage_row = pd.DataFrame([[timestamp, name, 'U', voltage_value]], columns = ['timestamp', 'id', 'unit', 'value'])
         current_row = pd.DataFrame([[timestamp, name, 'I', current_value]], columns = ['timestamp', 'id', 'unit', 'value'])
         power_row = pd.DataFrame([[timestamp, name, 'P', power_value]], columns = ['timestamp', 'id', 'unit', 'value'])
-
-        #for row in [voltage_row, current_row, power_row]:
-        #    df = pd.concat([df, row], ignore_index=True)
         df = pd.concat([df, voltage_row], ignore_index=True)
         df = pd.concat([df, current_row], ignore_index=True)
         df = pd.concat([df, power_row], ignore_index=True)
@@ -85,87 +82,84 @@ def get_new_sensor_values(save_to_csv):
     return df
 
 
+def animation_update(i, *fargs):
+
+    # unpack dataframe from input tuple
+    df = fargs[0]
+
+    # update data
+    df_new_data = get_new_sensor_values(save_to_csv)
+
+    # append new data to old data
+    for _, row in df_new_data.iterrows():
+        df.loc[df.index.max()+1] = row # pd.concat() does not work
+
+    if df.shape[0] > max_length:
+        for _ in range(len(df_new_data)):
+            df.drop(df.index.min(), inplace=True)
+
+    # pivot dataframe
+    df_voltage_plot = df[df.unit == 'U'].pivot(columns=['id', 'unit'], index='timestamp')
+    df_current_plot = df[df.unit == 'I'].pivot(columns=['id', 'unit'], index='timestamp')
+    df_power_plot = df[df.unit == 'P'].pivot(columns=['id', 'unit'], index='timestamp')
+
+    df_voltage_plot.columns = [col[1] for col in df_voltage_plot.columns]
+    df_current_plot.columns = [col[1] for col in df_current_plot.columns]
+    df_power_plot.columns = [col[1] for col in df_power_plot.columns]
+                    
+    # clear axis
+    voltage_ax.cla()
+    current_ax.cla()
+    power_ax.cla()
+
+    # plot voltage line
+    df_voltage_plot.plot(ax=voltage_ax)
+    df_current_plot.plot(ax=current_ax)
+    df_power_plot.plot(ax=power_ax)
+
+    # set titles
+    voltage_ax.set_title('Voltage', fontsize=9, color='k')
+    current_ax.set_title('Current', fontsize=9, color='k')
+    power_ax.set_title('Power', fontsize=9, color='k')
+
+    # set ylabels
+    voltage_ax.set_ylabel('Voltage [V]', fontsize=9, color='k')
+    current_ax.set_ylabel('Current [A]', fontsize=9, color='k')
+    power_ax.set_ylabel('Power [W]', fontsize=9, color='k')
+    
+    # remove spines and ticks
+    voltage_ax.spines['left'].set_visible(False)
+    voltage_ax.spines['right'].set_visible(False)
+    voltage_ax.spines['top'].set_visible(False)
+    voltage_ax.spines['bottom'].set_visible(False)
+
+    current_ax.spines['left'].set_visible(False)
+    current_ax.spines['right'].set_visible(False)
+    current_ax.spines['top'].set_visible(False)
+    current_ax.spines['bottom'].set_visible(False)
+
+    power_ax.spines['left'].set_visible(False)
+    power_ax.spines['right'].set_visible(False)
+    power_ax.spines['top'].set_visible(False)
+    power_ax.spines['bottom'].set_visible(False)
+
+
 
 if __name__ == '__main__':
 
     if list_all_windows_ports:
-        
         ports = list(serial.tools.list_ports.comports())
-
         print('USB PORTS: ')
         for p in ports:
             print(p)
-        
         print()
 
     check_connection()
-
     
     df = get_new_sensor_values(save_to_csv=False)
 
     if save_to_csv:
         df.to_csv('measurements.csv', index=False)
-
-    def my_function(i, *fargs):
-
-        # unpack dataframe from input tuple
-        df = fargs[0]
-
-        # update data
-        df_new_data = get_new_sensor_values(save_to_csv)
-
-        # append new data to old data
-        for _, row in df_new_data.iterrows():
-            df.loc[df.index.max()+1] = row # pd.concat() does not work
-
-        if df.shape[0] > max_length:
-            for _ in range(len(df_new_data)):
-                df.drop(df.index.min(), inplace=True)
-
-        # pivot dataframe
-        df_voltage_plot = df[df.unit == 'U'].pivot(columns=['id', 'unit'], index='timestamp')
-        df_current_plot = df[df.unit == 'I'].pivot(columns=['id', 'unit'], index='timestamp')
-        df_power_plot = df[df.unit == 'P'].pivot(columns=['id', 'unit'], index='timestamp')
-
-        df_voltage_plot.columns = [col[1] for col in df_voltage_plot.columns]
-        df_current_plot.columns = [col[1] for col in df_current_plot.columns]
-        df_power_plot.columns = [col[1] for col in df_power_plot.columns]
-                     
-        # clear axis
-        voltage_ax.cla()
-        current_ax.cla()
-        power_ax.cla()
-
-        # plot voltage line
-        df_voltage_plot.plot(ax=voltage_ax)
-        df_current_plot.plot(ax=current_ax)
-        df_power_plot.plot(ax=power_ax)
-
-        # set titles
-        voltage_ax.set_title('Voltage', fontsize=9, color='k')
-        current_ax.set_title('Current', fontsize=9, color='k')
-        power_ax.set_title('Power', fontsize=9, color='k')
-
-        # set ylabels
-        voltage_ax.set_ylabel('Voltage [V]', fontsize=9, color='k')
-        current_ax.set_ylabel('Current [A]', fontsize=9, color='k')
-        power_ax.set_ylabel('Power [W]', fontsize=9, color='k')
-        
-        # remove spines and ticks
-        voltage_ax.spines['left'].set_visible(False)
-        voltage_ax.spines['right'].set_visible(False)
-        voltage_ax.spines['top'].set_visible(False)
-        voltage_ax.spines['bottom'].set_visible(False)
-
-        current_ax.spines['left'].set_visible(False)
-        current_ax.spines['right'].set_visible(False)
-        current_ax.spines['top'].set_visible(False)
-        current_ax.spines['bottom'].set_visible(False)
-
-        power_ax.spines['left'].set_visible(False)
-        power_ax.spines['right'].set_visible(False)
-        power_ax.spines['top'].set_visible(False)
-        power_ax.spines['bottom'].set_visible(False)
 
     plt.style.use('ggplot')
 
@@ -186,7 +180,7 @@ if __name__ == '__main__':
     power_ax.xaxis.label.set_visible(False)
 
     # animate
-    ani = FuncAnimation(fig, my_function, fargs=(df,), interval=0)
+    ani = FuncAnimation(fig, animation_update, fargs=(df,), interval=0)
     fig.tight_layout()
     fig.subplots_adjust(left=0.09)
     plt.show()
