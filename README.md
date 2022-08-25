@@ -1,5 +1,6 @@
 # elmorlabs-pmd-usb-serial-inteface
 Live plotting example with data from ElmorLabs PMD-USB serial interface.
+Link to product: https://elmorlabs.com/product/elmorlabs-pmd-usb-power-measurement-device-with-usb/
 
 The project was created in and for Windows
 
